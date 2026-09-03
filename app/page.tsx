@@ -519,6 +519,41 @@ export default function Home() {
 
       <div className="max-w-4xl mx-auto px-4 py-8 relative z-10 space-y-6">
         
+        {/* ナビゲーションタブ */}
+        <div className="bg-white/70 backdrop-blur-2xl border border-white/80 p-1.5 rounded-3xl shadow-xl shadow-slate-900/5 flex gap-1">
+          <button
+            onClick={() => setActiveTab('timeline')}
+            className={`flex-1 py-3 px-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
+              activeTab === 'timeline' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25' : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+            }`}
+          >
+            旅程タイムライン
+          </button>
+          <button
+            onClick={() => setActiveTab('todo')}
+            className={`flex-1 py-3 px-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
+              activeTab === 'todo' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25' : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+            }`}
+          >
+            TODOリスト <span className="text-xs opacity-80">({todos.filter(t => !t.is_completed).length})</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('expenses')}
+            className={`flex-1 py-3 px-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
+              activeTab === 'expenses' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25' : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+            }`}
+          >
+            費用・立替
+          </button>
+          <button
+            onClick={() => setActiveTab('map')}
+            className={`flex-1 py-3 px-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
+              activeTab === 'map' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25' : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+            }`}
+          >
+            NAVER Map
+          </button>
+        </div>
 
         {/* 1. 旅程タイムライン */}
         {activeTab === 'timeline' && (
