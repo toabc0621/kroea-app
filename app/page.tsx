@@ -3,6 +3,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
+declare global {
+  interface Window {
+    L: any;
+  }
+}
+
 // Supabaseクライアントの初期化（環境変数を使用）
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
