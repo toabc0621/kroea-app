@@ -3,6 +3,11 @@ import './globals.css'
 export const metadata = {
   title: '韓国旅行プランナー',
   description: '6人グループ用旅行管理アプリ',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: '韓国旅行プランナー',
+  },
 }
 
 // 画面いっぱいに表示し、黒い縁（セーフエリアの余白）を防ぐ設定
