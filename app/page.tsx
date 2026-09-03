@@ -512,7 +512,7 @@ export default function Home() {
   });
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-indigo-50 via-sky-50 to-purple-50 text-slate-800 relative overflow-hidden pb-16">
+    <main className="min-h-dvh bg-gradient-to-br from-indigo-50 via-sky-50 to-purple-50 text-slate-800 relative overflow-hidden pb-16">
       <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-blue-300/30 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute top-[40%] right-[-10%] w-[600px] h-[600px] bg-purple-300/30 rounded-full blur-[140px] pointer-events-none" />
       <div className="absolute bottom-[-10%] left-[20%] w-[500px] h-[500px] bg-pink-200/30 rounded-full blur-[130px] pointer-events-none" />
