@@ -517,7 +517,7 @@ export default function Home() {
       <div className="absolute top-[40%] right-[-10%] w-[600px] h-[600px] bg-purple-300/30 rounded-full blur-[140px] pointer-events-none" />
       <div className="absolute bottom-[-10%] left-[20%] w-[500px] h-[500px] bg-pink-200/30 rounded-full blur-[130px] pointer-events-none" />
 
-      <div className="max-w-4xl mx-auto px-4 py-8 relative z-10 space-y-6">
+      <div className="w-full px-4 sm:px-8 py-8 relative z-10 space-y-6">
         
         {/* ナビゲーションタブ */}
         <div className="bg-white/70 backdrop-blur-2xl border border-white/80 p-1.5 rounded-3xl shadow-xl shadow-slate-900/5 flex gap-1">
