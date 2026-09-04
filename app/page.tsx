@@ -103,6 +103,7 @@ export default function Home() {
 
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
+  const [currentLocation, setCurrentLocation] = useState<{lat: number, lng: number} | null>(null);
 
   // --- Supabaseからのデータフェッチ ---
   useEffect(() => {
@@ -187,6 +188,30 @@ export default function Home() {
     }
   };
 
+  // 現在地を取得してマップを移動する関数
+  const handleShowCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      alert('お使いの端末・ブラウザでは現在地の取得がサポートされていません。');
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setCurrentLocation({ lat: latitude, lng: longitude });
+        
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.flyTo([latitude, longitude], 15);
+        }
+      },
+      (error) => {
+        console.error('Geolocation Error:', error);
+        alert('現在地を取得できませんでした。端末の位置情報サービスがオンになっているか確認してください。');
+      },
+      { enableHighAccuracy: true }
+    );
+  };
+
   // Leafletマップの初期化
   useEffect(() => {
     if (activeTab !== 'map') return;
@@ -217,7 +242,7 @@ export default function Home() {
         mapInstanceRef.current = null;
       }
     };
-  }, [activeTab, mapSpots, selectedMapCategory]);
+  }, [activeTab, mapSpots, selectedMapCategory, currentLocation]); // ← currentLocationを追加
 
   const initMap = () => {
     if (!window.L || !mapRef.current) return;
@@ -232,10 +257,12 @@ export default function Home() {
       return spot.category === selectedMapCategory;
     });
 
-    const centerLat = filtered.length > 0 ? filtered[0].lat : 37.5665;
-    const centerLng = filtered.length > 0 ? filtered[0].lng : 126.9780;
+    // 現在地が取得できている場合は現在地を中心に、なければ既存のロジック
+    const centerLat = currentLocation ? currentLocation.lat : (filtered.length > 0 ? filtered[0].lat : 37.5665);
+    const centerLng = currentLocation ? currentLocation.lng : (filtered.length > 0 ? filtered[0].lng : 126.9780);
+    const zoomLevel = currentLocation ? 15 : 13;
 
-    const map = window.L.map(mapRef.current).setView([centerLat, centerLng], 13);
+    const map = window.L.map(mapRef.current).setView([centerLat, centerLng], zoomLevel);
     mapInstanceRef.current = map;
 
     window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -266,6 +293,23 @@ export default function Home() {
         </div>
       `);
     });
+
+    // 現在地が取得できている場合は、青い現在地マーカーを表示（ループの外に配置）
+    if (currentLocation) {
+      const currentLocationIcon = window.L.divIcon({
+        className: 'current-location-pin',
+        html: `<div style="background-color: #3b82f6; width: 18px; height: 18px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.4), 0 4px 10px rgba(0,0,0,0.3);"></div>`,
+        iconSize: [18, 18],
+        iconAnchor: [9, 9],
+      });
+
+      window.L.marker([currentLocation.lat, currentLocation.lng], { 
+        icon: currentLocationIcon, 
+        zIndexOffset: 1000 
+      })
+      .addTo(map)
+      .bindPopup('<div style="font-weight:bold; font-size:12px;">現在地</div>');
+    }
   };
 
   // --- 旅程追加（Supabase連携） ---
@@ -793,7 +837,7 @@ export default function Home() {
               <div className="text-right">
                 <span className="text-xs text-slate-500 font-medium block">総支出合計 / 1人あたり平均</span>
                 <span className="text-xl font-extrabold text-blue-600">
-                  ¥{totalExpense.toLocaleString()} <span className="text-xs text-slate-500 font-normal">(¥{Math.round(fairShare).toLocaleString()} × {MEMBERS.length}人)</span>
+                  ¥{totalExpense.toLocaleString()} <span className="text-xs text-slate-500 font-normal">(¥{Math.round(fairShare).toLocaleString()} ÷ {MEMBERS.length}人)</span>
                 </span>
               </div>
             </div>
@@ -941,7 +985,15 @@ export default function Home() {
         {/* 4. NAVER Map */}
         {activeTab === 'map' && (
           <div className="space-y-6">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">NAVER Map 連携・マップ表示</h1>
+            <div className="flex justify-between items-end">
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900">NAVER Map 連携・マップ表示</h1>
+              <button
+                onClick={handleShowCurrentLocation}
+                className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1"
+              >
+                📍 現在地を表示
+              </button>
+            </div>
 
             <div className="bg-white/75 backdrop-blur-2xl border border-white/80 p-4 rounded-3xl shadow-xl shadow-slate-900/5 space-y-3">
               <div ref={mapRef} className="w-full h-80 rounded-2xl z-0 border border-slate-200/60 shadow-inner" />
