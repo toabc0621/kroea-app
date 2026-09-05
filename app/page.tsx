@@ -100,6 +100,7 @@ export default function Home() {
   const [newSpotLng, setNewSpotLng] = useState('126.9770');
   const [selectedMapCategory, setSelectedMapCategory] = useState<string>('すべて');
   const [isGeocoding, setIsGeocoding] = useState(false);
+  const [editingSpotId, setEditingSpotId] = useState<string | null>(null);
 
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
@@ -473,12 +474,12 @@ export default function Home() {
 
   const { fairShare, settlements, memberBalances } = calculateSettlements();
 
-  // --- NAVER Mapスポット追加（Supabase連携） ---
-  const handleAddMapSpot = async (e: React.FormEvent) => {
+  // --- NAVER Mapスポット追加・編集（Supabase連携） ---
+  const handleSaveMapSpot = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSpotNameJa && !newSpotNameKo) return;
 
-    const newSpot = {
+    const spotData = {
       name_ja: newSpotNameJa || newSpotNameKo,
       name_ko: newSpotNameKo,
       address_ko: newSpotAddressKo,
@@ -488,34 +489,93 @@ export default function Home() {
       lng: Number(newSpotLng) || 126.9780,
     };
 
-    const { data, error } = await supabase.from('map_spots').insert([newSpot]).select();
-    if (error) {
-      console.error(error);
-      return;
-    }
+    if (editingSpotId) {
+      // 編集（更新）
+      const { error } = await supabase
+        .from('map_spots')
+        .update(spotData)
+        .eq('id', editingSpotId);
 
-    if (data) {
-      setMapSpots([...mapSpots, {
-        id: data[0].id,
-        nameJa: data[0].name_ja,
-        nameKo: data[0].name_ko,
-        addressKo: data[0].address_ko,
-        category: data[0].category,
-        memo: data[0].memo,
-        lat: data[0].lat,
-        lng: data[0].lng,
-      }]);
+      if (error) {
+        console.error(error);
+        alert('スポットの更新に失敗しました');
+        return;
+      }
+
+      setMapSpots(mapSpots.map(s => s.id === editingSpotId ? {
+        id: editingSpotId,
+        nameJa: spotData.name_ja,
+        nameKo: spotData.name_ko,
+        addressKo: spotData.address_ko,
+        category: spotData.category,
+        memo: spotData.memo,
+        lat: spotData.lat,
+        lng: spotData.lng,
+      } : s));
+
+      setEditingSpotId(null);
       setNewSpotNameJa('');
       setNewSpotNameKo('');
       setNewSpotAddressKo('');
       setNewSpotMemo('');
+      alert('スポットを更新しました！');
+    } else {
+      // 新規追加
+      const { data, error } = await supabase.from('map_spots').insert([spotData]).select();
+      if (error) {
+        console.error(error);
+        alert('スポットの追加に失敗しました');
+        return;
+      }
+
+      if (data) {
+        setMapSpots([...mapSpots, {
+          id: data[0].id,
+          nameJa: data[0].name_ja,
+          nameKo: data[0].name_ko,
+          addressKo: data[0].address_ko,
+          category: data[0].category,
+          memo: data[0].memo,
+          lat: data[0].lat,
+          lng: data[0].lng,
+        }]);
+        setNewSpotNameJa('');
+        setNewSpotNameKo('');
+        setNewSpotAddressKo('');
+        setNewSpotMemo('');
+      }
     }
+  };
+
+  const handleStartEditMapSpot = (spot: MapSpotItem) => {
+    setEditingSpotId(spot.id);
+    setNewSpotNameJa(spot.nameJa);
+    setNewSpotNameKo(spot.nameKo || '');
+    setNewSpotAddressKo(spot.addressKo || '');
+    setNewSpotCategory(spot.category);
+    setNewSpotMemo(spot.memo || '');
+    setNewSpotLat(String(spot.lat));
+    setNewSpotLng(String(spot.lng));
+    window.scrollTo({ top: 400, behavior: 'smooth' });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingSpotId(null);
+    setNewSpotNameJa('');
+    setNewSpotNameKo('');
+    setNewSpotAddressKo('');
+    setNewSpotMemo('');
+    setNewSpotLat('37.5796');
+    setNewSpotLng('126.9770');
   };
 
   const deleteMapSpot = async (id: string) => {
     const { error } = await supabase.from('map_spots').delete().eq('id', id);
     if (!error) {
       setMapSpots(mapSpots.filter(s => s.id !== id));
+      if (editingSpotId === id) {
+        handleCancelEdit();
+      }
     }
   };
 
@@ -1013,17 +1073,35 @@ export default function Home() {
               </button>
             </form>
 
-            <form onSubmit={handleAddMapSpot} className="bg-white/70 backdrop-blur-xl border border-white/80 p-6 rounded-3xl shadow-xl shadow-slate-900/5 space-y-4">
+            <form onSubmit={handleSaveMapSpot} className={`bg-white/70 backdrop-blur-xl border p-6 rounded-3xl shadow-xl shadow-slate-900/5 space-y-4 transition-all ${editingSpotId ? 'border-amber-400 bg-amber-50/30' : 'border-white/80'}`}>
               <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                <h2 className="text-sm font-bold text-slate-900">新規スポットの追加</h2>
-                <button
-                  type="button"
-                  onClick={handleAutoGeocode}
-                  disabled={isGeocoding}
-                  className="bg-amber-500 hover:bg-amber-600 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 shadow-md shadow-amber-500/20 disabled:opacity-50"
-                >
-                  {isGeocoding ? '取得中...' : '入力内容から緯度経度を自動取得'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-bold text-slate-900">
+                    {editingSpotId ? 'スポットの編集中' : '新規スポットの追加'}
+                  </h2>
+                  {editingSpotId && (
+                    <span className="text-xs bg-amber-500 text-white px-2 py-0.5 rounded-full font-semibold">編集モード</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {editingSpotId && (
+                    <button
+                      type="button"
+                      onClick={handleCancelEdit}
+                      className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all"
+                    >
+                      キャンセル
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleAutoGeocode}
+                    disabled={isGeocoding}
+                    className="bg-amber-500 hover:bg-amber-600 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 shadow-md shadow-amber-500/20 disabled:opacity-50"
+                  >
+                    {isGeocoding ? '取得中...' : '入力内容から緯度経度を自動取得'}
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1100,8 +1178,8 @@ export default function Home() {
                 </div>
               </div>
               <div className="flex justify-end pt-2">
-                <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-2xl text-sm font-semibold shadow-lg">
-                  スポットを追加
+                <button type="submit" className={`px-6 py-2.5 rounded-2xl text-sm font-semibold text-white shadow-lg ${editingSpotId ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700'}`}>
+                  {editingSpotId ? 'スポットを更新する' : 'スポットを追加'}
                 </button>
               </div>
             </form>
@@ -1126,12 +1204,12 @@ export default function Home() {
             <div className="space-y-3.5">
               {filteredMapSpots.map(spot => {
                 const badgeColor = CATEGORY_COLORS[spot.category] || '#3b82f6';
-                // 韓国語名称、または韓国語住所を優先キーにしてNAVER Map検索
                 const searchKey = spot.nameKo || spot.addressKo || spot.nameJa;
                 const naverSearchUrl = `https://map.naver.com/p/search/${encodeURIComponent(searchKey)}`;
+                const isEditingThis = editingSpotId === spot.id;
 
                 return (
-                  <div key={spot.id} className="bg-white/70 backdrop-blur-xl border border-white/80 rounded-3xl shadow-xl shadow-slate-900/5 p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                  <div key={spot.id} className={`bg-white/70 backdrop-blur-xl border rounded-3xl shadow-xl shadow-slate-900/5 p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-all ${isEditingThis ? 'border-amber-400 ring-2 ring-amber-400/30' : 'border-white/80'}`}>
                     <div className="space-y-2">
                       <div className="flex items-center gap-2.5 flex-wrap">
                         <span className="text-xs font-bold px-2.5 py-1 rounded-xl text-white" style={{ backgroundColor: badgeColor }}>
@@ -1164,7 +1242,7 @@ export default function Home() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-2.5 flex-wrap">
                       <a
                         href={naverSearchUrl}
                         target="_blank"
@@ -1173,6 +1251,12 @@ export default function Home() {
                       >
                         NAVER Mapで開く
                       </a>
+                      <button 
+                        onClick={() => handleStartEditMapSpot(spot)} 
+                        className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3.5 py-2.5 rounded-2xl text-xs font-semibold whitespace-nowrap"
+                      >
+                        編集
+                      </button>
                       <button onClick={() => deleteMapSpot(spot.id)} className="text-rose-500 text-xs font-medium hover:underline px-2">
                         削除
                       </button>
