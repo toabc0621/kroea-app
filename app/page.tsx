@@ -74,13 +74,13 @@ export default function Home() {
   const [newTitle, setNewTitle] = useState('');
   const [newCategory, setNewCategory] = useState('観光');
   const [newMemo, setNewMemo] = useState('');
-  const [timelineSort, setTimelineSort] = useState<'day-asc' | 'time-asc'>('day-asc');
+  const [timelineSort, setTimelineSort] = useState<'day-asc' | 'time-asc' | 'custom'>('day-asc');
 
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [newTaskText, setNewTaskText] = useState('');
   const [newAssignees, setNewAssignees] = useState<string[]>(['たいき']);
   const [selectedMemberFilter, setSelectedMemberFilter] = useState<string>('全員');
-  const [todoSort, setTodoSort] = useState<'newest' | 'oldest' | 'incomplete'>('newest');
+  const [todoSort, setTodoSort] = useState<'newest' | 'oldest' | 'incomplete' | 'custom'>('newest');
 
   const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
   const [newExpenseTitle, setNewExpenseTitle] = useState('');
@@ -101,6 +101,10 @@ export default function Home() {
   const [selectedMapCategory, setSelectedMapCategory] = useState<string>('すべて');
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [editingSpotId, setEditingSpotId] = useState<string | null>(null);
+
+  // ドラッグ＆ドロップ管理用ステート
+  const [draggedItineraryIndex, setDraggedItineraryIndex] = useState<number | null>(null);
+  const [draggedTodoIndex, setDraggedTodoIndex] = useState<number | null>(null);
 
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
@@ -281,7 +285,6 @@ export default function Home() {
       });
 
       const marker = window.L.marker([spot.lat, spot.lng], { icon: customIcon }).addTo(map);
-      // 韓国語名称、または韓国語住所をキーにしてNAVER Map検索
       const searchKey = spot.nameKo || spot.addressKo || spot.nameJa;
       const naverSearchUrl = `https://map.naver.com/p/search/${encodeURIComponent(searchKey)}`;
       
@@ -312,6 +315,40 @@ export default function Home() {
       .addTo(map)
       .bindPopup('<div style="font-weight:bold; font-size:12px;">現在地</div>');
     }
+  };
+
+  // --- 旅程ドラッグ＆ドロップハンドラー ---
+  const handleItineraryDragStart = (index: number) => {
+    setDraggedItineraryIndex(index);
+  };
+
+  const handleItineraryDrop = (targetIndex: number) => {
+    if (draggedItineraryIndex === null || draggedItineraryIndex === targetIndex) return;
+
+    const updated = [...sortedItineraries];
+    const [movedItem] = updated.splice(draggedItineraryIndex, 1);
+    updated.splice(targetIndex, 0, movedItem);
+
+    setItineraries(updated);
+    setTimelineSort('custom');
+    setDraggedItineraryIndex(null);
+  };
+
+  // --- TODOドラッグ＆ドロップハンドラー ---
+  const handleTodoDragStart = (index: number) => {
+    setDraggedTodoIndex(index);
+  };
+
+  const handleTodoDrop = (targetIndex: number) => {
+    if (draggedTodoIndex === null || draggedTodoIndex === targetIndex) return;
+
+    const updated = [...sortedTodos];
+    const [movedItem] = updated.splice(draggedTodoIndex, 1);
+    updated.splice(targetIndex, 0, movedItem);
+
+    setTodos(updated);
+    setTodoSort('custom');
+    setDraggedTodoIndex(null);
   };
 
   // --- 旅程追加（Supabase連携） ---
@@ -490,7 +527,6 @@ export default function Home() {
     };
 
     if (editingSpotId) {
-      // 編集（更新）
       const { error } = await supabase
         .from('map_spots')
         .update(spotData)
@@ -520,7 +556,6 @@ export default function Home() {
       setNewSpotMemo('');
       alert('スポットを更新しました！');
     } else {
-      // 新規追加
       const { data, error } = await supabase.from('map_spots').insert([spotData]).select();
       if (error) {
         console.error(error);
@@ -595,21 +630,25 @@ export default function Home() {
     return t.assignees.includes(selectedMemberFilter);
   });
 
-  const sortedTodos = [...filteredTodos].sort((a, b) => {
-    if (todoSort === 'newest') return b.id.localeCompare(a.id);
-    if (todoSort === 'oldest') return a.id.localeCompare(b.id);
-    if (todoSort === 'incomplete') return (a.is_completed === b.is_completed) ? 0 : a.is_completed ? 1 : -1;
-    return 0;
-  });
+  const sortedTodos = todoSort === 'custom'
+    ? filteredTodos
+    : [...filteredTodos].sort((a, b) => {
+        if (todoSort === 'newest') return b.id.localeCompare(a.id);
+        if (todoSort === 'oldest') return a.id.localeCompare(b.id);
+        if (todoSort === 'incomplete') return (a.is_completed === b.is_completed) ? 0 : a.is_completed ? 1 : -1;
+        return 0;
+      });
 
-  const sortedItineraries = [...itineraries].sort((a, b) => {
-    if (timelineSort === 'day-asc') {
-      if (a.day !== b.day) return a.day - b.day;
-      return a.time.localeCompare(b.time);
-    } else {
-      return a.time.localeCompare(b.time);
-    }
-  });
+  const sortedItineraries = timelineSort === 'custom'
+    ? itineraries
+    : [...itineraries].sort((a, b) => {
+        if (timelineSort === 'day-asc') {
+          if (a.day !== b.day) return a.day - b.day;
+          return a.time.localeCompare(b.time);
+        } else {
+          return a.time.localeCompare(b.time);
+        }
+      });
 
   const filteredMapSpots = mapSpots.filter(spot => {
     if (selectedMapCategory === 'すべて') return true;
@@ -670,10 +709,11 @@ export default function Home() {
                 <select
                   className="bg-white/70 backdrop-blur-md border border-white/60 p-2 rounded-xl text-sm shadow-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                   value={timelineSort}
-                  onChange={(e) => setTimelineSort(e.target.value as 'day-asc' | 'time-asc')}
+                  onChange={(e) => setTimelineSort(e.target.value as 'day-asc' | 'time-asc' | 'custom')}
                 >
                   <option value="day-asc">日程・時間順</option>
                   <option value="time-asc">時間のみ順</option>
+                  <option value="custom">カスタム（ドラッグ並び替え順）</option>
                 </select>
               </div>
             </div>
@@ -746,22 +786,36 @@ export default function Home() {
             </form>
 
             <div className="space-y-4">
-              {sortedItineraries.map((item) => (
-                <div key={item.id} className="bg-white/70 backdrop-blur-xl border border-white/80 rounded-3xl shadow-xl shadow-slate-900/5 p-6 flex justify-between items-start transition-all hover:bg-white/80">
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-blue-600 bg-blue-500/10 px-2.5 py-1 rounded-lg">
-                        Day {item.day}
-                      </span>
-                      <span className="text-xs font-bold text-slate-700 bg-slate-200/55 px-2.5 py-1 rounded-lg">
-                        {item.time}
-                      </span>
-                      <span className="text-xs font-medium text-slate-500 border border-slate-200/60 px-2.5 py-0.5 rounded-lg">
-                        {item.category}
-                      </span>
+              {sortedItineraries.map((item, index) => (
+                <div 
+                  key={item.id} 
+                  draggable
+                  onDragStart={() => handleItineraryDragStart(index)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={() => handleItineraryDrop(index)}
+                  className={`bg-white/70 backdrop-blur-xl border border-white/80 rounded-3xl shadow-xl shadow-slate-900/5 p-6 flex justify-between items-start transition-all hover:bg-white/80 cursor-grab active:cursor-grabbing ${
+                    draggedItineraryIndex === index ? 'opacity-40 border-dashed border-blue-400 bg-blue-50/50' : ''
+                  }`}
+                >
+                  <div className="flex items-start gap-3.5">
+                    <span className="text-slate-400 hover:text-slate-600 pt-1 text-lg select-none cursor-grab active:cursor-grabbing">
+                      ⋮⋮
+                    </span>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-blue-600 bg-blue-500/10 px-2.5 py-1 rounded-lg">
+                          Day {item.day}
+                        </span>
+                        <span className="text-xs font-bold text-slate-700 bg-slate-200/55 px-2.5 py-1 rounded-lg">
+                          {item.time}
+                        </span>
+                        <span className="text-xs font-medium text-slate-500 border border-slate-200/60 px-2.5 py-0.5 rounded-lg">
+                          {item.category}
+                        </span>
+                      </div>
+                      <h2 className="text-lg font-bold text-slate-900">{item.title}</h2>
+                      {item.memo && <p className="text-slate-600 text-sm">{item.memo}</p>}
                     </div>
-                    <h2 className="text-lg font-bold text-slate-900">{item.title}</h2>
-                    {item.memo && <p className="text-slate-600 text-sm">{item.memo}</p>}
                   </div>
                   <button 
                     onClick={() => deleteItinerary(item.id)}
@@ -785,11 +839,12 @@ export default function Home() {
                 <select
                   className="bg-white/70 backdrop-blur-md border border-white/60 p-2 rounded-xl text-sm shadow-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                   value={todoSort}
-                  onChange={(e) => setTodoSort(e.target.value as 'newest' | 'oldest' | 'incomplete')}
+                  onChange={(e) => setTodoSort(e.target.value as 'newest' | 'oldest' | 'incomplete' | 'custom')}
                 >
                   <option value="newest">新しい順</option>
                   <option value="oldest">古い順</option>
                   <option value="incomplete">未完了優先</option>
+                  <option value="custom">カスタム（ドラッグ順）</option>
                 </select>
               </div>
             </div>
@@ -856,9 +911,21 @@ export default function Home() {
             </form>
 
             <div className="space-y-3">
-              {sortedTodos.map(todo => (
-                <div key={todo.id} className="bg-white/70 backdrop-blur-xl border border-white/80 rounded-3xl shadow-xl shadow-slate-900/5 p-5 flex items-center justify-between transition-all hover:bg-white/80">
+              {sortedTodos.map((todo, index) => (
+                <div 
+                  key={todo.id} 
+                  draggable
+                  onDragStart={() => handleTodoDragStart(index)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={() => handleTodoDrop(index)}
+                  className={`bg-white/70 backdrop-blur-xl border border-white/80 rounded-3xl shadow-xl shadow-slate-900/5 p-5 flex items-center justify-between transition-all hover:bg-white/80 cursor-grab active:cursor-grabbing ${
+                    draggedTodoIndex === index ? 'opacity-40 border-dashed border-blue-400 bg-blue-50/50' : ''
+                  }`}
+                >
                   <div className="flex items-center gap-3.5">
+                    <span className="text-slate-400 hover:text-slate-600 text-lg select-none cursor-grab active:cursor-grabbing">
+                      ⋮⋮
+                    </span>
                     <input 
                       type="checkbox" 
                       checked={todo.is_completed}
@@ -1218,7 +1285,6 @@ export default function Home() {
                         <h2 className="text-base font-bold text-slate-900">{spot.nameJa}</h2>
                       </div>
 
-                      {/* 韓国語名称・住所・メモの表示エリア */}
                       <div className="space-y-1 text-xs text-slate-600">
                         {spot.nameKo && (
                           <div className="flex items-center gap-2">
