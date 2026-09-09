@@ -9,7 +9,6 @@ declare global {
   }
 }
 
-// Supabaseクライアントの初期化（環境変数を使用）
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -68,6 +67,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 export default function Home() {
   const [activeTab, setActiveTab] = useState<'timeline' | 'todo' | 'expenses' | 'map'>('map');
 
+  // 1. 旅程 State
   const [itineraries, setItineraries] = useState<ItineraryItem[]>([]);
   const [newDay, setNewDay] = useState(1);
   const [newTime, setNewTime] = useState('10:00');
@@ -75,20 +75,26 @@ export default function Home() {
   const [newCategory, setNewCategory] = useState('観光');
   const [newMemo, setNewMemo] = useState('');
   const [timelineSort, setTimelineSort] = useState<'day-asc' | 'time-asc' | 'custom'>('day-asc');
+  const [editingItineraryId, setEditingItineraryId] = useState<string | null>(null);
 
+  // 2. TODO State
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [newTaskText, setNewTaskText] = useState('');
   const [newAssignees, setNewAssignees] = useState<string[]>(['たいき']);
   const [selectedMemberFilter, setSelectedMemberFilter] = useState<string>('全員');
   const [todoSort, setTodoSort] = useState<'newest' | 'oldest' | 'incomplete' | 'custom'>('newest');
+  const [editingTodoId, setEditingTodoId] = useState<string | null>(null);
 
+  // 3. 費用 State
   const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
   const [newExpenseTitle, setNewExpenseTitle] = useState('');
   const [newExpenseAmount, setNewExpenseAmount] = useState('');
   const [newExpensePaidBy, setNewExpensePaidBy] = useState('たいき');
   const [newExpenseCategory, setNewExpenseCategory] = useState('食事');
   const [showCalculationDetails, setShowCalculationDetails] = useState(true);
+  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
 
+  // 4. NAVER Map State
   const [mapSpots, setMapSpots] = useState<MapSpotItem[]>([]);
   const [freeQuery, setFreeQuery] = useState('');
   const [newSpotNameJa, setNewSpotNameJa] = useState('');
@@ -102,7 +108,7 @@ export default function Home() {
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [editingSpotId, setEditingSpotId] = useState<string | null>(null);
 
-  // ドラッグ＆ドロップ管理用ステート
+  // ドラッグ＆ドロップ用
   const [draggedItineraryIndex, setDraggedItineraryIndex] = useState<number | null>(null);
   const [draggedTodoIndex, setDraggedTodoIndex] = useState<number | null>(null);
 
@@ -110,17 +116,15 @@ export default function Home() {
   const mapInstanceRef = useRef<any>(null);
   const [currentLocation, setCurrentLocation] = useState<{lat: number, lng: number} | null>(null);
 
-  // --- Supabaseからのデータフェッチ ---
+  // --- Supabase取得 ---
   useEffect(() => {
     fetchData();
   }, []);
 
   const fetchData = async () => {
-    // 1. 旅程取得
     const { data: itData } = await supabase.from('itineraries').select('*');
     if (itData) setItineraries(itData);
 
-    // 2. TODO取得
     const { data: todoData } = await supabase.from('todos').select('*');
     if (todoData) {
       setTodos(todoData.map((t: any) => ({
@@ -132,7 +136,6 @@ export default function Home() {
       })));
     }
 
-    // 3. 費用取得
     const { data: expData } = await supabase.from('expenses').select('*');
     if (expData) {
       setExpenses(expData.map((e: any) => ({
@@ -144,7 +147,6 @@ export default function Home() {
       })));
     }
 
-    // 4. マップスポット取得
     const { data: mapData } = await supabase.from('map_spots').select('*');
     if (mapData) {
       setMapSpots(mapData.map((m: any) => ({
@@ -160,7 +162,7 @@ export default function Home() {
     }
   };
 
-  // 緯度経度の自動取得
+  // --- 地図関連 ---
   const handleAutoGeocode = async () => {
     let searchQuery = newSpotNameKo || newSpotAddressKo || newSpotNameJa;
     if (!searchQuery) {
@@ -193,7 +195,6 @@ export default function Home() {
     }
   };
 
-  // 現在地を取得してマップを移動する関数
   const handleShowCurrentLocation = () => {
     if (!navigator.geolocation) {
       alert('お使いの端末・ブラウザでは現在地の取得がサポートされていません。');
@@ -211,13 +212,12 @@ export default function Home() {
       },
       (error) => {
         console.error('Geolocation Error:', error);
-        alert('現在地を取得できませんでした。端末の位置情報サービスがオンになっているか確認してください。');
+        alert('現在地を取得できませんでした。');
       },
       { enableHighAccuracy: true }
     );
   };
 
-  // Leafletマップの初期化
   useEffect(() => {
     if (activeTab !== 'map') return;
 
@@ -317,46 +317,35 @@ export default function Home() {
     }
   };
 
-  // --- 旅程ドラッグ＆ドロップハンドラー ---
-  const handleItineraryDragStart = (index: number) => {
-    setDraggedItineraryIndex(index);
-  };
-
+  // --- ドラッグ＆ドロップ ---
+  const handleItineraryDragStart = (index: number) => setDraggedItineraryIndex(index);
   const handleItineraryDrop = (targetIndex: number) => {
     if (draggedItineraryIndex === null || draggedItineraryIndex === targetIndex) return;
-
     const updated = [...sortedItineraries];
     const [movedItem] = updated.splice(draggedItineraryIndex, 1);
     updated.splice(targetIndex, 0, movedItem);
-
     setItineraries(updated);
     setTimelineSort('custom');
     setDraggedItineraryIndex(null);
   };
 
-  // --- TODOドラッグ＆ドロップハンドラー ---
-  const handleTodoDragStart = (index: number) => {
-    setDraggedTodoIndex(index);
-  };
-
+  const handleTodoDragStart = (index: number) => setDraggedTodoIndex(index);
   const handleTodoDrop = (targetIndex: number) => {
     if (draggedTodoIndex === null || draggedTodoIndex === targetIndex) return;
-
     const updated = [...sortedTodos];
     const [movedItem] = updated.splice(draggedTodoIndex, 1);
     updated.splice(targetIndex, 0, movedItem);
-
     setTodos(updated);
     setTodoSort('custom');
     setDraggedTodoIndex(null);
   };
 
-  // --- 旅程追加（Supabase連携） ---
-  const handleAddItinerary = async (e: React.FormEvent) => {
+  // --- 1. 旅程（追加・編集・削除） ---
+  const handleSaveItinerary = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle) return;
 
-    const newItem = {
+    const payload = {
       day: Number(newDay),
       time: newTime,
       title: newTitle,
@@ -364,62 +353,87 @@ export default function Home() {
       memo: newMemo,
     };
 
-    const { data, error } = await supabase.from('itineraries').insert([newItem]).select();
-    if (error) {
-      console.error(error);
-      alert('追加に失敗しました');
-      return;
-    }
-
-    if (data) {
-      setItineraries([...itineraries, data[0]]);
+    if (editingItineraryId) {
+      const { error } = await supabase.from('itineraries').update(payload).eq('id', editingItineraryId);
+      if (error) return alert('更新に失敗しました');
+      setItineraries(itineraries.map(i => i.id === editingItineraryId ? { ...i, ...payload } : i));
+      handleCancelItineraryEdit();
+    } else {
+      const { data, error } = await supabase.from('itineraries').insert([payload]).select();
+      if (error) return alert('追加に失敗しました');
+      if (data) setItineraries([...itineraries, data[0]]);
       setNewTitle('');
       setNewMemo('');
     }
+  };
+
+  const handleStartEditItinerary = (item: ItineraryItem) => {
+    setEditingItineraryId(item.id);
+    setNewDay(item.day);
+    setNewTime(item.time);
+    setNewTitle(item.title);
+    setNewCategory(item.category);
+    setNewMemo(item.memo || '');
+  };
+
+  const handleCancelItineraryEdit = () => {
+    setEditingItineraryId(null);
+    setNewTitle('');
+    setNewMemo('');
+    setNewTime('10:00');
   };
 
   const deleteItinerary = async (id: string) => {
     const { error } = await supabase.from('itineraries').delete().eq('id', id);
     if (!error) {
       setItineraries(itineraries.filter(i => i.id !== id));
+      if (editingItineraryId === id) handleCancelItineraryEdit();
     }
   };
 
-  // --- TODO追加・更新（Supabase連携） ---
-  const handleAddTodo = async (e: React.FormEvent) => {
+  // --- 2. TODO（追加・編集・削除） ---
+  const handleSaveTodo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTaskText || newAssignees.length === 0) return;
 
-    const newTodo = {
-      task: newTaskText,
-      assignees: newAssignees,
-      is_completed: false,
-    };
-
-    const { data, error } = await supabase.from('todos').insert([newTodo]).select();
-    if (error) {
-      console.error(error);
-      return;
-    }
-
-    if (data) {
-      setTodos([...todos, data[0]]);
+    if (editingTodoId) {
+      const payload = { task: newTaskText, assignees: newAssignees };
+      const { error } = await supabase.from('todos').update(payload).eq('id', editingTodoId);
+      if (error) return alert('更新に失敗しました');
+      setTodos(todos.map(t => t.id === editingTodoId ? { ...t, ...payload } : t));
+      handleCancelTodoEdit();
+    } else {
+      const payload = { task: newTaskText, assignees: newAssignees, is_completed: false };
+      const { data, error } = await supabase.from('todos').insert([payload]).select();
+      if (error) return alert('追加に失敗しました');
+      if (data) setTodos([...todos, data[0]]);
       setNewTaskText('');
       setNewAssignees(['たいき']);
     }
   };
 
+  const handleStartEditTodo = (todo: TodoItem) => {
+    setEditingTodoId(todo.id);
+    setNewTaskText(todo.task);
+    setNewAssignees(todo.assignees);
+  };
+
+  const handleCancelTodoEdit = () => {
+    setEditingTodoId(null);
+    setNewTaskText('');
+    setNewAssignees(['たいき']);
+  };
+
   const toggleTodoComplete = async (id: string, currentStatus: boolean) => {
     const { error } = await supabase.from('todos').update({ is_completed: !currentStatus }).eq('id', id);
-    if (!error) {
-      setTodos(todos.map(t => t.id === id ? { ...t, is_completed: !currentStatus } : t));
-    }
+    if (!error) setTodos(todos.map(t => t.id === id ? { ...t, is_completed: !currentStatus } : t));
   };
 
   const deleteTodo = async (id: string) => {
     const { error } = await supabase.from('todos').delete().eq('id', id);
     if (!error) {
       setTodos(todos.filter(t => t.id !== id));
+      if (editingTodoId === id) handleCancelTodoEdit();
     }
   };
 
@@ -431,41 +445,65 @@ export default function Home() {
     }
   };
 
-  // --- 費用追加（Supabase連携） ---
-  const handleAddExpense = async (e: React.FormEvent) => {
+  // --- 3. 費用（追加・編集・削除） ---
+  const handleSaveExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newExpenseTitle || !newExpenseAmount) return;
 
-    const newExp = {
+    const payload = {
       title: newExpenseTitle,
       amount: Number(newExpenseAmount),
       paid_by: newExpensePaidBy,
       category: newExpenseCategory,
     };
 
-    const { data, error } = await supabase.from('expenses').insert([newExp]).select();
-    if (error) {
-      console.error(error);
-      return;
+    if (editingExpenseId) {
+      const { error } = await supabase.from('expenses').update(payload).eq('id', editingExpenseId);
+      if (error) return alert('更新に失敗しました');
+      setExpenses(expenses.map(e => e.id === editingExpenseId ? {
+        id: editingExpenseId,
+        title: payload.title,
+        amount: payload.amount,
+        paidBy: payload.paid_by,
+        category: payload.category
+      } : e));
+      handleCancelExpenseEdit();
+    } else {
+      const { data, error } = await supabase.from('expenses').insert([payload]).select();
+      if (error) return alert('追加に失敗しました');
+      if (data) {
+        setExpenses([...expenses, {
+          id: data[0].id,
+          title: data[0].title,
+          amount: data[0].amount,
+          paidBy: data[0].paid_by,
+          category: data[0].category,
+        }]);
+        setNewExpenseTitle('');
+        setNewExpenseAmount('');
+      }
     }
+  };
 
-    if (data) {
-      setExpenses([...expenses, {
-        id: data[0].id,
-        title: data[0].title,
-        amount: data[0].amount,
-        paidBy: data[0].paid_by,
-        category: data[0].category,
-      }]);
-      setNewExpenseTitle('');
-      setNewExpenseAmount('');
-    }
+  const handleStartEditExpense = (expense: ExpenseItem) => {
+    setEditingExpenseId(expense.id);
+    setNewExpenseTitle(expense.title);
+    setNewExpenseAmount(String(expense.amount));
+    setNewExpensePaidBy(expense.paidBy);
+    setNewExpenseCategory(expense.category);
+  };
+
+  const handleCancelExpenseEdit = () => {
+    setEditingExpenseId(null);
+    setNewExpenseTitle('');
+    setNewExpenseAmount('');
   };
 
   const deleteExpense = async (id: string) => {
     const { error } = await supabase.from('expenses').delete().eq('id', id);
     if (!error) {
       setExpenses(expenses.filter(e => e.id !== id));
+      if (editingExpenseId === id) handleCancelExpenseEdit();
     }
   };
 
@@ -511,7 +549,7 @@ export default function Home() {
 
   const { fairShare, settlements, memberBalances } = calculateSettlements();
 
-  // --- NAVER Mapスポット追加・編集（Supabase連携） ---
+  // --- 4. NAVER Map（追加・編集・削除） ---
   const handleSaveMapSpot = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSpotNameJa && !newSpotNameKo) return;
@@ -527,16 +565,8 @@ export default function Home() {
     };
 
     if (editingSpotId) {
-      const { error } = await supabase
-        .from('map_spots')
-        .update(spotData)
-        .eq('id', editingSpotId);
-
-      if (error) {
-        console.error(error);
-        alert('スポットの更新に失敗しました');
-        return;
-      }
+      const { error } = await supabase.from('map_spots').update(spotData).eq('id', editingSpotId);
+      if (error) return alert('スポットの更新に失敗しました');
 
       setMapSpots(mapSpots.map(s => s.id === editingSpotId ? {
         id: editingSpotId,
@@ -549,19 +579,11 @@ export default function Home() {
         lng: spotData.lng,
       } : s));
 
-      setEditingSpotId(null);
-      setNewSpotNameJa('');
-      setNewSpotNameKo('');
-      setNewSpotAddressKo('');
-      setNewSpotMemo('');
+      handleCancelMapSpotEdit();
       alert('スポットを更新しました！');
     } else {
       const { data, error } = await supabase.from('map_spots').insert([spotData]).select();
-      if (error) {
-        console.error(error);
-        alert('スポットの追加に失敗しました');
-        return;
-      }
+      if (error) return alert('スポットの追加に失敗しました');
 
       if (data) {
         setMapSpots([...mapSpots, {
@@ -594,7 +616,7 @@ export default function Home() {
     window.scrollTo({ top: 400, behavior: 'smooth' });
   };
 
-  const handleCancelEdit = () => {
+  const handleCancelMapSpotEdit = () => {
     setEditingSpotId(null);
     setNewSpotNameJa('');
     setNewSpotNameKo('');
@@ -608,9 +630,7 @@ export default function Home() {
     const { error } = await supabase.from('map_spots').delete().eq('id', id);
     if (!error) {
       setMapSpots(mapSpots.filter(s => s.id !== id));
-      if (editingSpotId === id) {
-        handleCancelEdit();
-      }
+      if (editingSpotId === id) handleCancelMapSpotEdit();
     }
   };
 
@@ -625,11 +645,8 @@ export default function Home() {
     window.open(`https://map.naver.com/p/search/${encodeURIComponent(freeQuery)}`, '_blank');
   };
 
-  const filteredTodos = todos.filter(t => {
-    if (selectedMemberFilter === '全員') return true;
-    return t.assignees.includes(selectedMemberFilter);
-  });
-
+  // --- ソート処理 ---
+  const filteredTodos = todos.filter(t => selectedMemberFilter === '全員' || t.assignees.includes(selectedMemberFilter));
   const sortedTodos = todoSort === 'custom'
     ? filteredTodos
     : [...filteredTodos].sort((a, b) => {
@@ -650,10 +667,7 @@ export default function Home() {
         }
       });
 
-  const filteredMapSpots = mapSpots.filter(spot => {
-    if (selectedMapCategory === 'すべて') return true;
-    return spot.category === selectedMapCategory;
-  });
+  const filteredMapSpots = mapSpots.filter(spot => selectedMapCategory === 'すべて' || spot.category === selectedMapCategory);
 
   return (
     <main className="min-h-dvh bg-gradient-to-br from-indigo-50 via-sky-50 to-purple-50 text-slate-800 relative overflow-hidden pb-16">
@@ -709,7 +723,7 @@ export default function Home() {
                 <select
                   className="bg-white/70 backdrop-blur-md border border-white/60 p-2 rounded-xl text-sm shadow-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                   value={timelineSort}
-                  onChange={(e) => setTimelineSort(e.target.value as 'day-asc' | 'time-asc' | 'custom')}
+                  onChange={(e) => setTimelineSort(e.target.value as any)}
                 >
                   <option value="day-asc">日程・時間順</option>
                   <option value="time-asc">時間のみ順</option>
@@ -718,7 +732,18 @@ export default function Home() {
               </div>
             </div>
 
-            <form onSubmit={handleAddItinerary} className="bg-white/70 backdrop-blur-xl border border-white/80 p-6 rounded-3xl shadow-xl shadow-slate-900/5 grid grid-cols-1 sm:grid-cols-5 gap-4">
+            {/* 旅程 入力/編集 フォーム */}
+            <form onSubmit={handleSaveItinerary} className={`bg-white/70 backdrop-blur-xl border p-6 rounded-3xl shadow-xl shadow-slate-900/5 grid grid-cols-1 sm:grid-cols-5 gap-4 transition-all ${editingItineraryId ? 'border-amber-400 bg-amber-50/30' : 'border-white/80'}`}>
+              <div className="sm:col-span-5 flex justify-between items-center pb-2 border-b border-slate-100">
+                <span className="text-xs font-bold text-slate-700">
+                  {editingItineraryId ? '✏️ 旅程の編集' : '➕ 新規旅程の追加'}
+                </span>
+                {editingItineraryId && (
+                  <button type="button" onClick={handleCancelItineraryEdit} className="text-xs bg-slate-200 hover:bg-slate-300 px-3 py-1 rounded-xl text-slate-700 font-semibold">
+                    キャンセル
+                  </button>
+                )}
+              </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-500 mb-1.5">日数</label>
                 <select 
@@ -779,8 +804,8 @@ export default function Home() {
                 />
               </div>
               <div className="flex items-end">
-                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white p-2.5 rounded-2xl text-sm font-semibold shadow-lg shadow-blue-500/25 transition-all active:scale-[0.98]">
-                  追加する
+                <button type="submit" className={`w-full p-2.5 rounded-2xl text-sm font-semibold text-white shadow-lg transition-all active:scale-[0.98] ${editingItineraryId ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700'}`}>
+                  {editingItineraryId ? '更新する' : '追加する'}
                 </button>
               </div>
             </form>
@@ -793,9 +818,9 @@ export default function Home() {
                   onDragStart={() => handleItineraryDragStart(index)}
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={() => handleItineraryDrop(index)}
-                  className={`bg-white/70 backdrop-blur-xl border border-white/80 rounded-3xl shadow-xl shadow-slate-900/5 p-6 flex justify-between items-start transition-all hover:bg-white/80 cursor-grab active:cursor-grabbing ${
-                    draggedItineraryIndex === index ? 'opacity-40 border-dashed border-blue-400 bg-blue-50/50' : ''
-                  }`}
+                  className={`bg-white/70 backdrop-blur-xl border rounded-3xl shadow-xl shadow-slate-900/5 p-6 flex justify-between items-start transition-all hover:bg-white/80 cursor-grab active:cursor-grabbing ${
+                    editingItineraryId === item.id ? 'border-amber-400 ring-2 ring-amber-400/30' : 'border-white/80'
+                  } ${draggedItineraryIndex === index ? 'opacity-40 border-dashed border-blue-400 bg-blue-50/50' : ''}`}
                 >
                   <div className="flex items-start gap-3.5">
                     <span className="text-slate-400 hover:text-slate-600 pt-1 text-lg select-none cursor-grab active:cursor-grabbing">
@@ -817,12 +842,14 @@ export default function Home() {
                       {item.memo && <p className="text-slate-600 text-sm">{item.memo}</p>}
                     </div>
                   </div>
-                  <button 
-                    onClick={() => deleteItinerary(item.id)}
-                    className="text-rose-500 text-xs font-medium hover:underline pt-1"
-                  >
-                    削除
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => handleStartEditItinerary(item)} className="text-slate-600 text-xs font-semibold hover:underline">
+                      編集
+                    </button>
+                    <button onClick={() => deleteItinerary(item.id)} className="text-rose-500 text-xs font-medium hover:underline">
+                      削除
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -839,7 +866,7 @@ export default function Home() {
                 <select
                   className="bg-white/70 backdrop-blur-md border border-white/60 p-2 rounded-xl text-sm shadow-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                   value={todoSort}
-                  onChange={(e) => setTodoSort(e.target.value as 'newest' | 'oldest' | 'incomplete' | 'custom')}
+                  onChange={(e) => setTodoSort(e.target.value as any)}
                 >
                   <option value="newest">新しい順</option>
                   <option value="oldest">古い順</option>
@@ -874,7 +901,18 @@ export default function Home() {
               })}
             </div>
 
-            <form onSubmit={handleAddTodo} className="bg-white/70 backdrop-blur-xl border border-white/80 p-6 rounded-3xl shadow-xl shadow-slate-900/5 space-y-4">
+            {/* TODO 入力/編集 フォーム */}
+            <form onSubmit={handleSaveTodo} className={`bg-white/70 backdrop-blur-xl border p-6 rounded-3xl shadow-xl shadow-slate-900/5 space-y-4 transition-all ${editingTodoId ? 'border-amber-400 bg-amber-50/30' : 'border-white/80'}`}>
+              <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                <span className="text-xs font-bold text-slate-700">
+                  {editingTodoId ? '✏️ TODOの編集' : '➕ 新規TODOの追加'}
+                </span>
+                {editingTodoId && (
+                  <button type="button" onClick={handleCancelTodoEdit} className="text-xs bg-slate-200 hover:bg-slate-300 px-3 py-1 rounded-xl text-slate-700 font-semibold">
+                    キャンセル
+                  </button>
+                )}
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 mb-1.5">タスク内容</label>
@@ -904,8 +942,8 @@ export default function Home() {
                 </div>
               </div>
               <div className="flex justify-end">
-                <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-2xl text-sm font-semibold shadow-lg shadow-blue-500/25 transition-all active:scale-[0.98]">
-                  追加する
+                <button type="submit" className={`px-6 py-2.5 rounded-2xl text-sm font-semibold text-white shadow-lg transition-all active:scale-[0.98] ${editingTodoId ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700'}`}>
+                  {editingTodoId ? '更新する' : '追加する'}
                 </button>
               </div>
             </form>
@@ -918,9 +956,9 @@ export default function Home() {
                   onDragStart={() => handleTodoDragStart(index)}
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={() => handleTodoDrop(index)}
-                  className={`bg-white/70 backdrop-blur-xl border border-white/80 rounded-3xl shadow-xl shadow-slate-900/5 p-5 flex items-center justify-between transition-all hover:bg-white/80 cursor-grab active:cursor-grabbing ${
-                    draggedTodoIndex === index ? 'opacity-40 border-dashed border-blue-400 bg-blue-50/50' : ''
-                  }`}
+                  className={`bg-white/70 backdrop-blur-xl border rounded-3xl shadow-xl shadow-slate-900/5 p-5 flex items-center justify-between transition-all hover:bg-white/80 cursor-grab active:cursor-grabbing ${
+                    editingTodoId === todo.id ? 'border-amber-400 ring-2 ring-amber-400/30' : 'border-white/80'
+                  } ${draggedTodoIndex === index ? 'opacity-40 border-dashed border-blue-400 bg-blue-50/50' : ''}`}
                 >
                   <div className="flex items-center gap-3.5">
                     <span className="text-slate-400 hover:text-slate-600 text-lg select-none cursor-grab active:cursor-grabbing">
@@ -945,12 +983,14 @@ export default function Home() {
                       </div>
                     </div>
                   </div>
-                  <button 
-                    onClick={() => deleteTodo(todo.id)}
-                    className="text-rose-500 text-xs font-medium hover:underline"
-                  >
-                    削除
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => handleStartEditTodo(todo)} className="text-slate-600 text-xs font-semibold hover:underline">
+                      編集
+                    </button>
+                    <button onClick={() => deleteTodo(todo.id)} className="text-rose-500 text-xs font-medium hover:underline">
+                      削除
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1023,8 +1063,18 @@ export default function Home() {
               )}
             </div>
 
-            {/* 新規費用追加 */}
-            <form onSubmit={handleAddExpense} className="bg-white/70 backdrop-blur-xl border border-white/80 p-6 rounded-3xl shadow-xl shadow-slate-900/5 grid grid-cols-1 sm:grid-cols-5 gap-4">
+            {/* 費用 入力/編集 フォーム */}
+            <form onSubmit={handleSaveExpense} className={`bg-white/70 backdrop-blur-xl border p-6 rounded-3xl shadow-xl shadow-slate-900/5 grid grid-cols-1 sm:grid-cols-5 gap-4 transition-all ${editingExpenseId ? 'border-amber-400 bg-amber-50/30' : 'border-white/80'}`}>
+              <div className="sm:col-span-5 flex justify-between items-center pb-2 border-b border-slate-100">
+                <span className="text-xs font-bold text-slate-700">
+                  {editingExpenseId ? '✏️ 費用の編集' : '➕ 新規費用の追加'}
+                </span>
+                {editingExpenseId && (
+                  <button type="button" onClick={handleCancelExpenseEdit} className="text-xs bg-slate-200 hover:bg-slate-300 px-3 py-1 rounded-xl text-slate-700 font-semibold">
+                    キャンセル
+                  </button>
+                )}
+              </div>
               <div className="sm:col-span-2">
                 <label className="block text-xs font-semibold text-slate-500 mb-1.5">項目名</label>
                 <input 
@@ -1074,16 +1124,15 @@ export default function Home() {
                 </select>
               </div>
               <div className="sm:col-span-5 flex justify-end">
-                <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-2xl text-sm font-semibold shadow-lg shadow-blue-500/25 transition-all active:scale-[0.98]">
-                  費用を追加
+                <button type="submit" className={`px-6 py-2.5 rounded-2xl text-sm font-semibold text-white shadow-lg transition-all active:scale-[0.98] ${editingExpenseId ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700'}`}>
+                  {editingExpenseId ? '更新する' : '費用を追加'}
                 </button>
               </div>
             </form>
 
-            {/* 費用一覧 */}
             <div className="space-y-3">
               {expenses.map(expense => (
-                <div key={expense.id} className="bg-white/70 backdrop-blur-xl border border-white/80 rounded-3xl shadow-xl shadow-slate-900/5 p-5 flex justify-between items-center transition-all hover:bg-white/80">
+                <div key={expense.id} className={`bg-white/70 backdrop-blur-xl border rounded-3xl shadow-xl shadow-slate-900/5 p-5 flex justify-between items-center transition-all hover:bg-white/80 ${editingExpenseId === expense.id ? 'border-amber-400 ring-2 ring-amber-400/30' : 'border-white/80'}`}>
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-bold text-blue-600 bg-blue-500/10 px-2.5 py-0.5 rounded-lg">
@@ -1097,10 +1146,10 @@ export default function Home() {
                   </div>
                   <div className="flex items-center gap-4">
                     <span className="text-lg font-extrabold text-slate-900">¥{expense.amount.toLocaleString()}</span>
-                    <button 
-                      onClick={() => deleteExpense(expense.id)}
-                      className="text-rose-500 text-xs font-medium hover:underline"
-                    >
+                    <button onClick={() => handleStartEditExpense(expense)} className="text-slate-600 text-xs font-semibold hover:underline">
+                      編集
+                    </button>
+                    <button onClick={() => deleteExpense(expense.id)} className="text-rose-500 text-xs font-medium hover:underline">
                       削除
                     </button>
                   </div>
@@ -1154,7 +1203,7 @@ export default function Home() {
                   {editingSpotId && (
                     <button
                       type="button"
-                      onClick={handleCancelEdit}
+                      onClick={handleCancelMapSpotEdit}
                       className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all"
                     >
                       キャンセル
