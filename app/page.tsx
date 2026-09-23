@@ -50,7 +50,7 @@ type MapSpotItem = {
   lng: number;
 };
 
-const MEMBERS = ['たいき', 'ハル', 'シオン', 'ミサト', 'けいしゅう', 'りゅうせい'];
+const MEMBERS = ['たいき', 'ハル', 'シオン',  'けいしゅう', 'りゅうせい'];
 const MAP_CATEGORIES = ['すべて', '拠点', 'レストラン', 'カフェ', 'ショッピング', '夜系', 'クラブ', '両替所', '観光地'] as const;
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -860,7 +860,7 @@ export default function Home() {
         {activeTab === 'todo' && (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900">TODOリスト (6人管理)</h1>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900">TODOリスト (5人管理)</h1>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-slate-500 font-medium">並び替え:</span>
                 <select
@@ -1013,7 +1013,7 @@ export default function Home() {
             {/* 自動精算シミュレーション */}
             <div className="bg-white/75 backdrop-blur-2xl border border-blue-200/60 rounded-3xl p-6 shadow-xl shadow-blue-900/5 space-y-4">
               <div className="flex justify-between items-center">
-                <h2 className="text-sm font-bold text-blue-900">自動精算シミュレーション（6人均等割り勘）</h2>
+                <h2 className="text-sm font-bold text-blue-900">自動精算シミュレーション（5人均等割り勘）</h2>
                 <button
                   onClick={() => setShowCalculationDetails(!showCalculationDetails)}
                   className="text-xs text-blue-600 bg-white/80 border border-blue-200 px-3.5 py-1.5 rounded-xl font-semibold hover:bg-white transition shadow-xs"

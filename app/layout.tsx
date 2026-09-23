@@ -2,7 +2,7 @@ import './globals.css'
 
 export const metadata = {
   title: '韓国旅行プランナー',
-  description: '6人グループ用旅行管理アプリ',
+  description: '5人グループ用旅行管理アプリ',
 }
 
 export const viewport = {
